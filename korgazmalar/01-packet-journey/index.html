@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Paket Sayohati 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000510;overflow:hidden;font-family:'Courier New',monospace}
+#c{display:block;width:100%;height:100vh}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10}
+#hdr{text-align:center;padding:10px 0 4px;pointer-events:none}
+#hdr p{font-size:8px;color:#00e5ff44;letter-spacing:4px}
+#hdr h1{font-size:15px;font-weight:800;color:#fff;text-shadow:0 0 20px #00e5ff44}
+#overlay{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 32px);max-width:560px;pointer-events:none;opacity:0;transition:opacity .4s}
+#overlay.show{opacity:1}
+#overlay-inner{background:rgba(4,10,22,.9);border-left:3px solid #fff;border-radius:12px;
+  padding:14px 20px;backdrop-filter:blur(16px)}
+#ov-label{font-size:8px;letter-spacing:3px;margin-bottom:5px}
+#ov-title{font-size:16px;font-weight:800;color:#fff;margin-bottom:12px}
+.ov-step{display:flex;gap:10px;margin-bottom:7px;opacity:.1;transition:opacity .5s}
+.ov-step.on{opacity:1}
+.ov-arrow{font-size:10px;min-width:14px;margin-top:1px}
+.ov-text{font-size:12px;font-family:system-ui,sans-serif;color:#c8dae8;line-height:1.5}
+#dots{position:fixed;bottom:68px;left:0;right:0;display:flex;justify-content:center;gap:7px}
+.dot{width:8px;height:8px;border-radius:4px;background:#1e3a5a;transition:all .3s}
+.dot.done{background:#00e5ff}
+.dot.cur{background:#00e5ff88;box-shadow:0 0 12px #00e5ff}
+#bar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;width:100%;max-width:680px;padding:0 14px;pointer-events:all}
+#inp-wrap{flex:1;display:flex;align-items:center;gap:10px;
+  background:rgba(5,12,24,.9);border:1px solid #1e3a5a;border-radius:10px;
+  padding:0 14px;backdrop-filter:blur(14px)}
+#inp-wrap span{color:#00e5ff;font-size:15px;font-weight:700}
+#inp{flex:1;background:transparent;border:none;outline:none;color:#e2e8f0;
+  font-family:'Courier New',monospace;font-size:14px;padding:12px 0}
+#btn{padding:12px 20px;background:rgba(0,229,255,.06);border:1px solid #00e5ff44;
+  border-radius:10px;color:#00e5ff;font-family:'Courier New',monospace;font-size:13px;
+  cursor:pointer;letter-spacing:1.5px;backdrop-filter:blur(14px)}
+#btn.stop{background:rgba(26,6,6,.9);border-color:#ef444455;color:#ef4444}
+#labels{position:fixed;inset:0;pointer-events:none}
+.lbl{position:absolute;text-align:center;transform:translate(-50%,-50%);
+  pointer-events:none;transition:opacity .4s;opacity:.18}
+.lbl-icon{font-size:18px;line-height:1}
+.lbl-name{font-size:9px;letter-spacing:1;margin-top:2px}
+.lbl-sub{font-size:7px;opacity:.4}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="hdr">
+    <p>◉ 3D PACKET JOURNEY ◉</p>
+    <h1>Klaviaturadan Kosmosga — 3D</h1>
+  </div>
+  <div id="overlay">
+    <div id="overlay-inner">
+      <div id="ov-label"></div>
+      <div id="ov-title"></div>
+      <div id="ov-steps"></div>
+    </div>
+  </div>
+  <div id="dots"></div>
+  <div id="bar">
+    <div id="inp-wrap"><span>›_</span>
+      <input id="inp" placeholder="google.com yozing va Enter bosing..." autocomplete="off"/>
+    </div>
+    <button id="btn">▶ YUBORISH</button>
+  </div>
+  <div id="labels"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Node & journey data ────────────────────────────────────────────────────
+const N={
+  keyboard:{p:[0,-9,0],col:0xfbbf24,hex:"#fbbf24",lbl:"Klaviatura",sub:"USB HID",icon:"⌨️",r:.6},
+  cpu:     {p:[-3.5,-5,1],col:0xef4444,hex:"#ef4444",lbl:"CPU",sub:"4GHz 8-core",icon:"⚡",r:.52},
+  ram:     {p:[0,-5.5,2], col:0xa855f7,hex:"#a855f7",lbl:"RAM",sub:"DDR5 16GB",icon:"▓",r:.44},
+  nic:     {p:[3.5,-5,1], col:0x06b6d4,hex:"#06b6d4",lbl:"NIC",sub:"1Gbps Eth",icon:"◉",r:.52},
+  router:  {p:[0,-0.5,0], col:0xf59e0b,hex:"#f59e0b",lbl:"Router",sub:"WiFi 6 AX",icon:"📡",r:.6},
+  isp:     {p:[-6,4,-1],  col:0x3b82f6,hex:"#3b82f6",lbl:"ISP",sub:"UzTelecom",icon:"🏭",r:.52},
+  backbone:{p:[6,4,-1],   col:0x818cf8,hex:"#818cf8",lbl:"Magistral",sub:"Tier-1 IXP",icon:"🌐",r:.52},
+  datacenter:{p:[6,9,0],  col:0x10b981,hex:"#10b981",lbl:"Server",sub:"AWS/CDN",icon:"🏢",r:.52},
+  satellite:{p:[-4,13,2], col:0x00e5ff,hex:"#00e5ff",lbl:"Yo'ldosh",sub:"LEO 550km",icon:"🛰️",r:.68},
+};
+
+const JOURNEY=[
+  {to:"keyboard"},
+  {from:"keyboard",to:"cpu",   type:"bus"},
+  {from:"cpu",     to:"ram",   type:"bus"},
+  {from:"ram",     to:"nic",   type:"bus"},
+  {from:"nic",     to:"router",type:"wifi"},
+  {from:"router",  to:"isp",   type:"fiber"},
+  {from:"isp",     to:"backbone",type:"fiber"},
+  {from:"backbone",to:"datacenter",type:"fiber"},
+  {from:"datacenter",to:"satellite",type:"beam"},
+];
+
+const ECOL={bus:0xa855f7,wifi:0x10b981,fiber:0x3b82f6,beam:0x00e5ff};
+const ESPD={bus:.85,wifi:.7,fiber:2,beam:.6};
+const EINT={bus:1.8,wifi:2.4,fiber:.5,beam:2.2};
+
+const INTERNALS={
+  keyboard:{title:"⌨️ Klaviatura — USB HID Signal",color:"#fbbf24",
+    steps:["Tugma bosildi — 5V elektr kontakt yopildi","USB HID Report: [0x00,0x0A,0x00,...]","CPU ga IRQ1 interrupt yuborildi","OS kernel handler: ~50 nanosaniya! ⚡"]},
+  cpu:{title:"⚡ CPU — Interrupt Qayta Ishlash",color:"#ef4444",
+    steps:["IRQ1 → IDT jadval tekshirildi","Ring-3 → Ring-0 kernel mode","Pipeline: FETCH→DECODE→EXECUTE","send() syscall — TCP stack ishga!"]},
+  ram:{title:"▓ RAM — Paket Yig'ilmoqda",color:"#a855f7",
+    steps:["Socket send buffer (8KB) ajratildi","IP header: TTL=64, dst=142.250.x.x","TCP header + payload birlashtiridi","CRC-32 checksum — paket tayyor!"]},
+  nic:{title:"◉ NIC — Ethernet Assembly",color:"#06b6d4",
+    steps:["DMA: paket RAM → NIC TX buffer","Ethernet II freym: MAC header","FCS CRC-32 qo'shildi","PHY 1000BASE-T signal yuborildi!"]},
+  router:{title:"📡 Router — NAT & Routing",color:"#f59e0b",
+    steps:["ARP: gateway MAC topildi","NAT: 192.168.1.x → 91.212.x.x","Route: 142.250.0.0/16 → ISP","TTL 64→63 — paket yo'naltirildi!"]},
+  isp:{title:"🏭 ISP — BGP Routing",color:"#3b82f6",
+    steps:["Toshkent PoP edge router ga yetdi","BGP: AS15169 (Google) izlandi","Path: AS8193→AS1299→AS15169","Fiber 200,000 km/s → Frankfurt!"]},
+  backbone:{title:"🌐 Magistral — IXP Switching",color:"#818cf8",
+    steps:["DE-CIX Frankfurt: 10+ Tbps","MPLS label 0x1234 qo'shildi","100 Gbps DWDM × 80 wavelength","Google peering: yetdi! ✓"]},
+  datacenter:{title:"🏢 Data Center — Server",color:"#10b981",
+    steps:["Load balancer: server #2847 tanladi","CDN CACHE HIT — topildi!","NVMe SSD: 7 microsaniya","HTTP 200 OK — 42ms da! ✅"]},
+  satellite:{title:"🛰️ Sun'iy Yo'ldosh — LEO",color:"#00e5ff",
+    steps:["Starlink LEO: 550km, 27,000km/h","Ka-band signal qabul qilindi","Inter-satellite laser relay","GPS: 24 sat, ±2.5m ✅"]},
+};
+
+// ── Three.js setup ─────────────────────────────────────────────────────────
+const W=()=>innerWidth, H=()=>innerHeight;
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setClearColor(0x000510);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x000510,.014);
+
+const camera=new THREE.PerspectiveCamera(55,W()/H(),.1,500);
+camera.position.set(0,2,24);
+
+function resize(){renderer.setSize(W(),H());camera.aspect=W()/H();camera.updateProjectionMatrix();}
+resize(); window.addEventListener('resize',resize);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x112244,1));
+const sun=new THREE.DirectionalLight(0x88aaff,.6);sun.position.set(10,20,10);scene.add(sun);
+
+// Stars
+const sa=new Float32Array(12000);for(let i=0;i<12000;i++)sa[i]=(Math.random()-.5)*350;
+const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(sa,3));
+scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:.07,transparent:true,opacity:.65,sizeAttenuation:true})));
+
+// ── Nodes ─────────────────────────────────────────────────────────────────
+const nodeMesh={},glowMesh={},nodeLight={};
+Object.entries(N).forEach(([id,n])=>{
+  const m=new THREE.Mesh(
+    new THREE.SphereGeometry(n.r,32,32),
+    new THREE.MeshPhongMaterial({color:n.col,emissive:n.col,emissiveIntensity:.12,transparent:true,opacity:.28})
+  );
+  m.position.set(...n.p);scene.add(m);nodeMesh[id]=m;
+
+  const wf=new THREE.Mesh(new THREE.SphereGeometry(n.r,12,12),
+    new THREE.MeshBasicMaterial({color:n.col,wireframe:true,transparent:true,opacity:.1}));
+  wf.position.set(...n.p);scene.add(wf);
+
+  const gm=new THREE.Mesh(new THREE.SphereGeometry(n.r*2.6,16,16),
+    new THREE.MeshBasicMaterial({color:n.col,transparent:true,opacity:.035,depthWrite:false,blending:THREE.AdditiveBlending}));
+  gm.position.set(...n.p);scene.add(gm);glowMesh[id]=gm;
+
+  const pl=new THREE.PointLight(n.col,.3,6);pl.position.set(...n.p);scene.add(pl);nodeLight[id]=pl;
+});
+
+// ── Edges ─────────────────────────────────────────────────────────────────
+function makeCurve(a,b){
+  const f=new THREE.Vector3(...N[a].p),t=new THREE.Vector3(...N[b].p);
+  const mid=f.clone().add(t).multiplyScalar(.5);
+  const dir=t.clone().sub(f).normalize();
+  mid.x+=-dir.z*2;mid.z+=2;
+  return new THREE.CatmullRomCurve3([f,mid,t]);
+}
+const edges={};
+JOURNEY.slice(1).forEach(e=>{
+  const key=`${e.from}-${e.to}`;
+  const curve=makeCurve(e.from,e.to);
+  const mat=new THREE.LineBasicMaterial({color:ECOL[e.type],transparent:true,opacity:.07,blending:THREE.AdditiveBlending});
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(80)),mat);
+  scene.add(line);
+  edges[key]={line,curve,mat,type:e.type};
+});
+
+// ── Labels DOM ────────────────────────────────────────────────────────────
+const labelsDiv=document.getElementById('labels');
+const labelEl={};
+Object.entries(N).forEach(([id,n])=>{
+  const d=document.createElement('div');
+  d.className='lbl';
+  d.style.color=n.hex;
+  d.innerHTML=`<div class="lbl-icon">${n.icon}</div><div class="lbl-name">${n.lbl}</div><div class="lbl-sub">${n.sub}</div>`;
+  labelsDiv.appendChild(d);labelEl[id]=d;
+});
+
+// ── Dots ──────────────────────────────────────────────────────────────────
+const dotsDiv=document.getElementById('dots');
+const dotEls=[];
+JOURNEY.slice(1).forEach((_,i)=>{const d=document.createElement('div');d.className='dot';dotsDiv.appendChild(d);dotEls.push(d);});
+
+// ── Overlay ───────────────────────────────────────────────────────────────
+const overlay=document.getElementById('overlay');
+const ovLabel=document.getElementById('ov-label');
+const ovTitle=document.getElementById('ov-title');
+const ovSteps=document.getElementById('ov-steps');
+const overlayInner=document.getElementById('overlay-inner');
+
+function showOverlay(id,activeStep){
+  const info=INTERNALS[id];
+  overlayInner.style.borderLeftColor=info.color;
+  ovLabel.style.color=info.color+'88';ovLabel.textContent='◉ QURILMA ICHIDA ◉';
+  ovTitle.textContent=info.title;ovTitle.style.textShadow=`0 0 18px ${info.color}44`;
+  ovSteps.innerHTML='';
+  info.steps.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='ov-step';d.id=`ovs${i}`;
+    d.innerHTML=`<span class="ov-arrow" style="color:${info.color}">○</span><span class="ov-text">${s}</span>`;
+    ovSteps.appendChild(d);
+  });
+  overlay.classList.add('show');
+}
+function hideOverlay(){overlay.classList.remove('show');}
+function setOvStep(i){
+  document.querySelectorAll('.ov-step').forEach((el,idx)=>{
+    el.classList.toggle('on',idx<i);
+    el.querySelector('.ov-arrow').textContent=idx<i?'▶':'○';
+  });
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────
+const camTarget=new THREE.Vector3(0,2,24);
+const lookTarget=new THREE.Vector3(0,2,0);
+const lookCur=new THREE.Vector3(0,2,0);
+
+// ── Packets ───────────────────────────────────────────────────────────────
+let packets=[];
+const spawnT={};
+
+// ── State ─────────────────────────────────────────────────────────────────
+let curStep=0,running=false;
+const btn=document.getElementById('btn');
+const inp=document.getElementById('inp');
+
+function setDots(){
+  dotEls.forEach((d,i)=>{
+    d.className='dot'+(curStep>i+1?' done':curStep===i+1?' cur':'');
+  });
+}
+
+let timers=[];
+function addT(fn,ms){const id=setTimeout(fn,ms);timers.push(id);}
+function clearAll(){timers.forEach(clearTimeout);timers=[];}
+
+function runStep(s){
+  if(s>=JOURNEY.length){running=false;btn.textContent='▶ YUBORISH';btn.className='';return;}
+  const j=JOURNEY[s];
+  curStep=s;setDots();
+  const dp=new THREE.Vector3(...N[j.to].p);
+  camTarget.set(dp.x*.25,dp.y*.25+2,22);
+  lookTarget.set(dp.x*.2,dp.y*.2,0);
+
+  addT(()=>{
+    // Zoom in
+    camTarget.set(dp.x+.5,dp.y+.8,dp.z+5.5);
+    lookTarget.set(dp.x,dp.y,dp.z);
+    showOverlay(j.to,0);
+    addT(()=>{
+      let si=0;
+      const tick=()=>{si++;setOvStep(si);if(si<4)addT(tick,720);};
+      addT(tick,720);
+      addT(()=>{
+        hideOverlay();
+        camTarget.set(dp.x*.15,dp.y*.15+2,22);
+        lookTarget.set(dp.x*.1,dp.y*.1,0);
+        addT(()=>runStep(s+1),520);
+      },2900);
+    },520);
+  },s===1?650:980);
+}
+
+function startJourney(){
+  if(!inp.value.trim())return;
+  clearAll();packets.forEach(p=>{scene.remove(p.mesh);});packets=[];
+  Object.keys(spawnT).forEach(k=>delete spawnT[k]);
+  curStep=0;running=true;
+  camTarget.set(0,2,24);lookTarget.set(0,2,0);
+  btn.textContent='■ STOP';btn.className='stop';
+  runStep(1);
+}
+
+function stopJourney(){
+  clearAll();running=false;curStep=0;
+  setDots();hideOverlay();
+  btn.textContent='▶ YUBORISH';btn.className='';
+  packets.forEach(p=>{scene.remove(p.mesh);});packets=[];
+  camTarget.set(0,2,24);lookTarget.set(0,2,0);
+}
+
+btn.addEventListener('click',()=>running?stopJourney():startJourney());
+inp.addEventListener('keydown',e=>e.key==='Enter'&&!running&&startJourney());
+
+// ── Animate ───────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  const t=clock.elapsedTime;
+
+  camera.position.lerp(camTarget,.05);
+  lookCur.lerp(lookTarget,.05);
+  camera.lookAt(lookCur);
+
+  // Active sets
+  const activeIds=new Set();
+  for(let i=1;i<=curStep;i++){const j=JOURNEY[i];if(j?.to)activeIds.add(j.to);}
+  const activeEdges=new Set();
+  for(let i=1;i<=curStep;i++){const j=JOURNEY[i];if(j?.from)activeEdges.add(`${j.from}-${j.to}`);}
+  const curId=JOURNEY[curStep-1]?.to;
+
+  // Nodes
+  Object.entries(nodeMesh).forEach(([id,m])=>{
+    const isAct=activeIds.has(id),isCur=id===curId;
+    if(isCur){
+      m.material.emissiveIntensity=.5+Math.sin(t*7)*.3;
+      m.material.opacity=.9;
+      m.scale.setScalar(1+Math.sin(t*5)*.07);
+      glowMesh[id].material.opacity=.14;
+      nodeLight[id].intensity=2.5;
+    } else if(isAct){
+      m.material.emissiveIntensity=.28+Math.sin(t*2)*.06;
+      m.material.opacity=.62;m.scale.setScalar(1);
+      glowMesh[id].material.opacity=.07;
+      nodeLight[id].intensity=.9;
+    } else {
+      m.material.emissiveIntensity=.07;
+      m.material.opacity=.2;m.scale.setScalar(1);
+      glowMesh[id].material.opacity=.02;
+      nodeLight[id].intensity=.18;
+    }
+    m.rotation.y+=dt*.22;
+  });
+
+  // Edge brightness
+  Object.entries(edges).forEach(([key,e])=>{
+    e.mat.opacity=activeEdges.has(key)?.7:.07;
+  });
+
+  // Spawn packets
+  if(running){
+    activeEdges.forEach(key=>{
+      const e=edges[key];if(!e)return;
+      if(!spawnT[key])spawnT[key]=t;
+      if(packets.length<40&&t-spawnT[key]>=EINT[e.type]){
+        spawnT[key]=t;
+        const pm=new THREE.Mesh(
+          new THREE.SphereGeometry(.11,7,7),
+          new THREE.MeshBasicMaterial({color:ECOL[e.type],transparent:true,opacity:.9,blending:THREE.AdditiveBlending})
+        );
+        scene.add(pm);
+        packets.push({mesh:pm,curve:e.curve,t:0,speed:ESPD[e.type]});
+      }
+    });
+  }
+
+  // Move packets
+  packets=packets.filter(p=>{
+    p.t+=dt*p.speed;
+    if(p.t>=1){scene.remove(p.mesh);return false;}
+    p.mesh.position.copy(p.curve.getPoint(Math.min(p.t,1)));
+    p.mesh.material.opacity=.9-p.t*.5;
+    return true;
+  });
+
+  // Label positions
+  Object.entries(N).forEach(([id,n])=>{
+    const el=labelEl[id];if(!el)return;
+    const v=new THREE.Vector3(...n.p);v.y-=n.r+.55;v.project(camera);
+    if(v.z>1){el.style.opacity='0';return;}
+    el.style.left=((v.x*.5+.5)*W())+'px';
+    el.style.top=((-v.y*.5+.5)*H())+'px';
+    el.style.opacity=activeIds.has(id)?'1':'.18';
+    el.querySelector('.lbl-name').style.color=N[id].hex;
+  });
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
