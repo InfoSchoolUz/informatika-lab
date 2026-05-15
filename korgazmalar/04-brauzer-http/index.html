@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Brauzer & HTTP</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000510;color:#e2e8f0;font-family:'Inter',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+canvas#bg{position:fixed;inset:0;z-index:0}
+.ui{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh;padding:12px 14px}
+
+.hdr{text-align:center;margin-bottom:10px}
+.hdr-badge{font-size:8px;color:#f59e0b55;letter-spacing:4px}
+.hdr h1{font-size:1.3rem;font-weight:800;color:#fff;text-shadow:0 0 24px #f59e0b44}
+.hdr p{font-size:.75rem;color:#475569}
+
+/* URL bar */
+.url-wrap{display:flex;gap:8px;margin-bottom:12px}
+.url-box{flex:1;display:flex;align-items:center;gap:8px;background:rgba(15,12,5,.9);
+  border:1.5px solid #3a2a0a;border-radius:12px;padding:0 14px;transition:border-color .2s}
+.url-box:focus-within{border-color:#f59e0b;box-shadow:0 0 20px rgba(245,158,11,.12)}
+.lock-icon{font-size:13px}
+#url-inp{flex:1;background:transparent;border:none;outline:none;color:#e2e8f0;
+  font-family:'JetBrains Mono',monospace;font-size:13px;padding:11px 0}
+#go-btn{padding:11px 18px;background:rgba(245,158,11,.1);border:1.5px solid #f59e0b55;
+  border-radius:10px;color:#f59e0b;font-size:13px;cursor:pointer;font-weight:700;transition:all .2s}
+#go-btn:hover{background:rgba(245,158,11,.2)}
+#go-btn.stop{background:rgba(26,6,6,.9);border-color:#ef444455;color:#ef4444}
+
+/* Main */
+.main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0}
+
+/* Journey canvas panel */
+.journey-panel{background:rgba(5,8,20,.85);border:1px solid #1a2a4a;border-radius:14px;
+  padding:12px;display:flex;flex-direction:column;overflow:hidden}
+.panel-title{font-size:8px;letter-spacing:3px;margin-bottom:8px;font-weight:700}
+.journey-panel .panel-title{color:#f59e0b}
+canvas#journey{flex:1;min-height:0;border-radius:8px}
+
+/* Right */
+.right{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
+
+/* HTTP log */
+.log-panel{background:rgba(5,8,20,.85);border:1px solid #1a2a4a;border-radius:14px;
+  padding:12px;flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.log-panel .panel-title{color:#3b82f6}
+.log-body{flex:1;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:.7rem;
+  display:flex;flex-direction:column;gap:4px}
+.log-line{padding:5px 8px;border-radius:6px;animation:fadeIn .3s ease;line-height:1.5}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.log-req{background:rgba(245,158,11,.07);border-left:2px solid #f59e0b;color:#fcd34d}
+.log-dns{background:rgba(168,85,247,.07);border-left:2px solid #a78bfa;color:#c4b5fd}
+.log-tcp{background:rgba(34,197,94,.07);border-left:2px solid #22c55e;color:#86efac}
+.log-res{background:rgba(59,130,246,.07);border-left:2px solid #3b82f6;color:#93c5fd}
+.log-render{background:rgba(16,185,129,.07);border-left:2px solid #10b981;color:#6ee7b7}
+.log-time{color:#475569;margin-right:6px}
+
+/* Browser preview */
+.browser-panel{background:rgba(5,8,20,.85);border:1px solid #1a2a4a;border-radius:14px;
+  padding:10px;overflow:hidden}
+.browser-panel .panel-title{color:#10b981}
+.browser-chrome{background:#0f172a;border-radius:8px;overflow:hidden}
+.browser-topbar{background:#1e293b;padding:6px 10px;display:flex;align-items:center;gap:6px}
+.browser-dots{display:flex;gap:4px}
+.browser-dot{width:8px;height:8px;border-radius:50%}
+.browser-addr{flex:1;background:#0f172a;border-radius:4px;padding:3px 8px;
+  font-family:'JetBrains Mono',monospace;font-size:.65rem;color:#64748b;overflow:hidden;white-space:nowrap}
+.browser-body{background:#fff;border-radius:0 0 8px 8px;padding:10px;min-height:80px;
+  display:flex;flex-direction:column;gap:6px;transition:all .3s}
+.skeleton{background:#f1f5f9;border-radius:4px;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.page-loaded{animation:pageIn .5s ease}
+@keyframes pageIn{from{opacity:0}to{opacity:1}}
+
+/* Dots */
+.dots{display:flex;justify-content:center;gap:6px;margin-top:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#0f1a2a;transition:all .3s}
+.dot.done{background:#f59e0b}
+.dot.cur{background:#f59e0b88;box-shadow:0 0 10px #f59e0b}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="ui">
+  <div class="hdr">
+    <div class="hdr-badge">◉ 04-KO'RGAZMA · 5-SINF</div>
+    <h1>🌐 Brauzer & HTTP Qanday Ishlaydi?</h1>
+    <p>URL yozasiz → ekranda sahifa — o'rtada nima bo'ladi?</p>
+  </div>
+
+  <div class="url-wrap">
+    <div class="url-box">
+      <span class="lock-icon">🔒</span>
+      <input id="url-inp" value="https://maktab.uz" autocomplete="off" spellcheck="false"/>
+    </div>
+    <button id="go-btn" onclick="startJourney()">▶ O'TISH</button>
+  </div>
+
+  <div class="main">
+    <div class="journey-panel">
+      <div class="panel-title">🗺️ SO'ROV SAYOHATI</div>
+      <canvas id="journey"></canvas>
+    </div>
+
+    <div class="right">
+      <div class="log-panel">
+        <div class="panel-title">📡 HTTP LOG — REAL VAQT</div>
+        <div class="log-body" id="log-body">
+          <div style="color:#1e3a5a;font-size:.72rem;padding:8px 0">▶ O'TISH tugmasini bosing...</div>
+        </div>
+      </div>
+
+      <div class="browser-panel">
+        <div class="panel-title">🖥️ BRAUZER EKRANI</div>
+        <div class="browser-chrome">
+          <div class="browser-topbar">
+            <div class="browser-dots">
+              <div class="browser-dot" style="background:#ef4444"></div>
+              <div class="browser-dot" style="background:#f59e0b"></div>
+              <div class="browser-dot" style="background:#22c55e"></div>
+            </div>
+            <div class="browser-addr" id="browser-addr">about:blank</div>
+          </div>
+          <div class="browser-body" id="browser-body">
+            <div style="text-align:center;color:#94a3b8;font-size:.75rem;padding:16px 0">Sahifa yo'q</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dots" id="dots"></div>
+</div>
+
+<script>
+// ── BG animation ────────────────────────────────────────────────────────────
+const bgc=document.getElementById('bg');const bx=bgc.getContext('2d');
+let bW,bH,bPts=[];
+function rBg(){bW=bgc.width=innerWidth;bH=bgc.height=innerHeight;}rBg();
+window.addEventListener('resize',rBg);
+for(let i=0;i<50;i++)bPts.push({x:Math.random()*1000,y:Math.random()*800,vx:(Math.random()-.5)*.12,vy:(Math.random()-.5)*.12});
+(function ab(){requestAnimationFrame(ab);bx.clearRect(0,0,bW,bH);
+  bPts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=bW;if(p.x>bW)p.x=0;if(p.y<0)p.y=bH;if(p.y>bH)p.y=0;});
+  bPts.forEach((a,i)=>bPts.slice(i+1).forEach(b=>{const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<100){bx.beginPath();bx.moveTo(a.x,a.y);bx.lineTo(b.x,b.y);
+      bx.strokeStyle=`rgba(245,158,11,${.03*(1-d/100)})`;bx.stroke();}}));
+  bPts.forEach(p=>{bx.beginPath();bx.arc(p.x,p.y,1.2,0,Math.PI*2);bx.fillStyle='rgba(245,158,11,.15)';bx.fill();});
+})();
+
+// ── Journey canvas ──────────────────────────────────────────────────────────
+const jc=document.getElementById('journey');const jx=jc.getContext('2d');
+const NODES=[
+  {label:'Siz',sub:'Brauzer',icon:'👤',col:'#f59e0b'},
+  {label:'DNS',sub:'Nom→IP',icon:'📖',col:'#a78bfa'},
+  {label:'Router',sub:'Gateway',icon:'📡',col:'#06b6d4'},
+  {label:'Server',sub:'maktab.uz',icon:'🖥️',col:'#22c55e'},
+  {label:'CDN',sub:'Kesh',icon:'⚡',col:'#10b981'},
+];
+let jNodes=[],packets=[],activeNodes=new Set(),activeEdges=new Set();
+let animT=0;const clock={last:performance.now(),dt:0};
+
+function initJourney(){
+  const p=jc.parentElement;
+  jc.width=p.clientWidth-24; jc.height=p.clientHeight-36;
+  const W=jc.width,H=jc.height;
+  // Layout: arch
+  jNodes=NODES.map((n,i)=>{
+    const t=i/(NODES.length-1);
+    const x=W*.1+t*(W*.8);
+    const y=i%2===0?H*.35:H*.65;
+    return {...n,x,y,r:24,pulse:0};
+  });
+}
+
+function drawJourney(t){
+  if(!jNodes.length)return;
+  jx.clearRect(0,0,jc.width,jc.height);
+  // Edges
+  for(let i=0;i<jNodes.length-1;i++){
+    const a=jNodes[i],b=jNodes[i+1];
+    const key=`${i}-${i+1}`;
+    const act=activeEdges.has(key);
+    jx.beginPath();
+    jx.moveTo(a.x,a.y);
+    // Curve
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2-(i%2===0?-20:20);
+    jx.quadraticCurveTo(mx,my,b.x,b.y);
+    jx.strokeStyle=act?'rgba(245,158,11,.6)':'rgba(30,58,90,.5)';
+    jx.lineWidth=act?2:1;
+    jx.setLineDash(act?[]:[4,4]);jx.stroke();jx.setLineDash([]);
+  }
+
+  // Packets
+  packets.forEach(pk=>{
+    const a=jNodes[pk.from],b=jNodes[pk.to];
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2-(pk.from%2===0?-20:20);
+    // Quadratic point
+    const tt=Math.min(pk.t,1);
+    const qx=(1-tt)*(1-tt)*a.x+2*(1-tt)*tt*mx+tt*tt*b.x;
+    const qy=(1-tt)*(1-tt)*a.y+2*(1-tt)*tt*my+tt*tt*b.y;
+    jx.beginPath();jx.arc(qx,qy,5,0,Math.PI*2);
+    jx.fillStyle=pk.color;
+    jx.shadowBlur=12;jx.shadowColor=pk.color;jx.fill();
+    jx.shadowBlur=0;
+    // Trail
+    for(let i=1;i<=4;i++){
+      const tt2=Math.max(0,tt-i*.04);
+      const tx=(1-tt2)*(1-tt2)*a.x+2*(1-tt2)*tt2*mx+tt2*tt2*b.x;
+      const ty=(1-tt2)*(1-tt2)*a.y+2*(1-tt2)*tt2*my+tt2*tt2*b.y;
+      jx.beginPath();jx.arc(tx,ty,3-i*.4,0,Math.PI*2);
+      jx.fillStyle=pk.color.replace(')',`,${.3-i*.06})`).replace('rgb','rgba');
+      jx.fill();
+    }
+  });
+
+  // Nodes
+  jNodes.forEach((n,i)=>{
+    const act=activeNodes.has(i);
+    n.pulse=(n.pulse||0)+(act?.08:.02);
+    const ps=Math.sin(n.pulse)*4;
+    // Glow
+    if(act){
+      jx.beginPath();jx.arc(n.x,n.y,n.r+10+ps,0,Math.PI*2);
+      jx.fillStyle=n.col.replace('#','rgba(').replace(/(..)(..)(..)$/,(_,r,g,b)=>`${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},.08)`);
+      jx.fill();
+    }
+    jx.beginPath();jx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    jx.fillStyle=act?n.col+'22':'rgba(10,20,40,.8)';
+    jx.strokeStyle=act?n.col:'rgba(30,58,90,.5)';
+    jx.lineWidth=act?2:1;jx.fill();jx.stroke();
+    // Icon
+    jx.font=`${act?16:13}px serif`;jx.textAlign='center';jx.textBaseline='middle';
+    jx.fillText(n.icon,n.x,n.y);
+    // Label
+    jx.font=`bold 8px Inter`;jx.fillStyle=act?n.col:'#334155';
+    jx.fillText(n.label,n.x,n.y+n.r+10);
+    jx.font='7px Inter';jx.fillStyle='#334155';
+    jx.fillText(n.sub,n.x,n.y+n.r+20);
+  });
+}
+
+// Animate packets
+let rafId;
+function animate(){
+  rafId=requestAnimationFrame(animate);
+  const now=performance.now();
+  clock.dt=(now-clock.last)/1000;clock.last=now;animT+=clock.dt;
+  packets=packets.filter(pk=>{
+    pk.t+=clock.dt*pk.speed;
+    return pk.t<1.1;
+  });
+  drawJourney(animT);
+}
+animate();
+
+function spawnPacket(from,to,color,speed=1.2){
+  packets.push({from,to,color,t:0,speed});
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────
+const logBody=document.getElementById('log-body');
+function log(cls,text,time=''){
+  logBody.innerHTML=logBody.innerHTML.replace('<div style="color:#1e3a5a','<div style="display:none');
+  const d=document.createElement('div');
+  d.className='log-line '+cls;
+  d.innerHTML=`<span class="log-time">${time}</span>${text}`;
+  logBody.appendChild(d);
+  logBody.scrollTop=logBody.scrollHeight;
+}
+
+// ── Browser preview ────────────────────────────────────────────────────────
+function setBrowser(state,url=''){
+  const addr=document.getElementById('browser-addr');
+  const body=document.getElementById('browser-body');
+  if(state==='loading'){
+    addr.textContent='⏳ '+url;addr.style.color='#f59e0b';
+    body.innerHTML=`
+      <div class="skeleton" style="height:14px;width:60%;border-radius:4px"></div>
+      <div class="skeleton" style="height:8px;width:90%;border-radius:4px"></div>
+      <div class="skeleton" style="height:8px;width:75%;border-radius:4px"></div>
+      <div class="skeleton" style="height:50px;border-radius:6px;margin-top:4px"></div>`;
+  } else if(state==='done'){
+    const domain=url.replace('https://','').replace('http://','');
+    addr.textContent='🔒 '+url;addr.style.color='#22c55e';
+    body.innerHTML=`<div class="page-loaded">
+      <div style="font-size:.85rem;font-weight:700;color:#1e293b;margin-bottom:4px">📚 ${domain}</div>
+      <div style="font-size:.7rem;color:#64748b;margin-bottom:6px">Bosh sahifa — Ta'lim portali</div>
+      <div style="display:flex;gap:4px;margin-bottom:6px">
+        ${['Asosiy','Darslar','Yangiliklar'].map(t=>`<span style="background:#f1f5f9;color:#475569;border-radius:4px;padding:2px 6px;font-size:.65rem">${t}</span>`).join('')}
+      </div>
+      <div style="background:#f8fafc;border-radius:6px;padding:8px;font-size:.7rem;color:#475569">
+        ✅ Sahifa <b style="color:#22c55e">42ms</b> da yuklandi!<br>
+        📦 Hajm: <b>128KB</b> · Status: <b>200 OK</b>
+      </div>
+    </div>`;
+  } else {
+    addr.textContent='about:blank';addr.style.color='#64748b';
+    body.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:.75rem;padding:16px 0">Sahifa yo\'q</div>';
+  }
+}
+
+// ── Main journey ────────────────────────────────────────────────────────────
+let running=false,timers=[];
+function T(fn,ms){const id=setTimeout(fn,ms);timers.push(id);return id;}
+function clearAll(){timers.forEach(clearTimeout);timers=[];packets=[];}
+
+const STEPS=[
+  {label:'URL kiritildi',edge:'0-1',node:0,packet:{f:0,t:1,col:'#f59e0b'},
+   logCls:'log-req',logMsg:'GET https://maktab.uz HTTP/1.1',time:'0ms'},
+  {label:'DNS so'rovi',edge:'0-1',node:1,packet:{f:0,t:1,col:'#a78bfa'},
+   logCls:'log-dns',logMsg:'DNS: maktab.uz → 185.8.212.11',time:'8ms'},
+  {label:'TCP ulanish',edge:'1-2',node:2,packet:{f:1,t:2,col:'#06b6d4'},
+   logCls:'log-tcp',logMsg:'TCP SYN → ACK: Ulanish o\'rnatildi',time:'14ms'},
+  {label:'HTTP so'rov',edge:'2-3',node:3,packet:{f:2,t:3,col:'#22c55e'},
+   logCls:'log-req',logMsg:'GET / HTTP/1.1 Host: maktab.uz',time:'18ms'},
+  {label:'CDN javob',edge:'3-4',node:4,packet:{f:3,t:4,col:'#10b981'},
+   logCls:'log-res',logMsg:'HTTP/1.1 200 OK — CDN cache HIT ⚡',time:'28ms'},
+  {label:'Brauzer render',edge:null,node:null,packet:null,
+   logCls:'log-render',logMsg:'HTML parse → CSS → JavaScript → Ekran! 🎉',time:'42ms'},
+];
+
+function buildDots(cur){
+  const d=document.getElementById('dots');d.innerHTML='';
+  STEPS.forEach((_,i)=>{
+    const dot=document.createElement('div');
+    dot.className='dot'+(i<cur?' done':i===cur?' cur':'');
+    d.appendChild(dot);
+  });
+}
+
+function startJourney(){
+  if(running){stopJourney();return;}
+  const url=document.getElementById('url-inp').value.trim()||'https://maktab.uz';
+  running=true;
+  document.getElementById('go-btn').textContent='■ TO\'XTAT';
+  document.getElementById('go-btn').className='stop';
+  logBody.innerHTML='';
+  activeNodes.clear();activeEdges.clear();packets=[];
+  setBrowser('loading',url);
+  buildDots(-1);
+
+  STEPS.forEach((step,i)=>{
+    T(()=>{
+      if(step.node!==null) activeNodes.add(step.node);
+      if(step.edge) activeEdges.add(step.edge);
+      if(step.packet) spawnPacket(step.packet.f,step.packet.t,step.packet.col,1.4);
+      log(step.logCls,step.logMsg,step.time);
+      buildDots(i);
+      if(i===STEPS.length-1){
+        T(()=>{
+          setBrowser('done',url);
+          running=false;
+          document.getElementById('go-btn').textContent='▶ O\'TISH';
+          document.getElementById('go-btn').className='';
+          buildDots(STEPS.length);
+        },600);
+      }
+    },i*900);
+  });
+}
+
+function stopJourney(){
+  clearAll();running=false;
+  activeNodes.clear();activeEdges.clear();
+  document.getElementById('go-btn').textContent='▶ O\'TISH';
+  document.getElementById('go-btn').className='';
+  logBody.innerHTML='<div style="color:#1e3a5a;font-size:.72rem;padding:8px 0">▶ O\'TISH tugmasini bosing...</div>';
+  setBrowser('empty');buildDots(-1);
+}
+
+document.getElementById('url-inp').addEventListener('keydown',e=>e.key==='Enter'&&!running&&startJourney());
+window.addEventListener('resize',()=>setTimeout(initJourney,80));
+setTimeout(initJourney,60);
+</script>
+</body>
+</html>
