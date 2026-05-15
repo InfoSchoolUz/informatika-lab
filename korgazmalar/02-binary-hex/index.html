@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Binary & Hex Konvertor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0f1e;color:#e2e8f0;font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* Background grid */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none}
+
+.container{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+
+/* Header */
+.hdr{text-align:center;padding:24px 0 28px}
+.hdr-badge{display:inline-block;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);
+  border-radius:20px;padding:4px 14px;font-size:11px;color:#60a5fa;letter-spacing:2px;margin-bottom:12px}
+.hdr h1{font-size:1.9rem;font-weight:800;background:linear-gradient(135deg,#60a5fa,#a78bfa,#34d399);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.hdr p{font-size:.88rem;color:#64748b}
+
+/* Mode tabs */
+.tabs{display:flex;gap:8px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.tab{padding:8px 20px;border-radius:8px;border:1px solid #1e3a5a;background:transparent;
+  color:#64748b;font-size:.85rem;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif}
+.tab.active{background:rgba(59,130,246,.15);border-color:#3b82f6;color:#60a5fa;font-weight:600}
+
+/* Input card */
+.input-card{background:rgba(15,23,42,.8);border:1px solid #1e3a5a;border-radius:16px;
+  padding:24px;margin-bottom:20px;backdrop-filter:blur(10px)}
+.input-label{font-size:.8rem;color:#64748b;letter-spacing:1px;margin-bottom:8px}
+.input-row{display:flex;gap:10px;align-items:center}
+.num-input{flex:1;background:#0a0f1e;border:1.5px solid #1e3a5a;border-radius:10px;
+  padding:14px 16px;color:#e2e8f0;font-size:1.5rem;font-family:'JetBrains Mono',monospace;
+  font-weight:700;outline:none;transition:border-color .2s;text-align:center}
+.num-input:focus{border-color:#3b82f6}
+.range-wrap{margin-top:14px}
+input[type=range]{width:100%;accent-color:#3b82f6;height:6px;border-radius:3px}
+.range-labels{display:flex;justify-content:space-between;font-size:.75rem;color:#475569;margin-top:4px;
+  font-family:'JetBrains Mono',monospace}
+
+/* Result cards */
+.results{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px}
+@media(max-width:600px){.results{grid-template-columns:1fr}}
+.res-card{background:rgba(15,23,42,.8);border:1.5px solid #1e3a5a;border-radius:14px;
+  padding:18px 16px;text-align:center;transition:all .3s;cursor:pointer;position:relative;overflow:hidden}
+.res-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s;border-radius:14px}
+.res-card.dec::before{background:radial-gradient(circle at 50% 0%,rgba(251,191,36,.06),transparent 70%)}
+.res-card.bin::before{background:radial-gradient(circle at 50% 0%,rgba(59,130,246,.08),transparent 70%)}
+.res-card.hex::before{background:radial-gradient(circle at 50% 0%,rgba(168,85,247,.08),transparent 70%)}
+.res-card:hover::before,.res-card.glow::before{opacity:1}
+.res-card.dec{border-color:rgba(251,191,36,.25)}
+.res-card.bin{border-color:rgba(59,130,246,.25)}
+.res-card.hex{border-color:rgba(168,85,247,.25)}
+.res-label{font-size:.7rem;letter-spacing:2px;margin-bottom:8px;font-weight:600}
+.res-card.dec .res-label{color:#fbbf24}
+.res-card.bin .res-label{color:#60a5fa}
+.res-card.hex .res-label{color:#a78bfa}
+.res-value{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700;
+  color:#e2e8f0;word-break:break-all;line-height:1.4;transition:all .2s;min-height:32px}
+.res-desc{font-size:.72rem;color:#475569;margin-top:6px}
+.copy-hint{font-size:.65rem;color:#334155;margin-top:4px}
+
+/* Bits visualizer */
+.bits-section{background:rgba(15,23,42,.8);border:1px solid #1e3a5a;border-radius:16px;
+  padding:22px;margin-bottom:20px}
+.bits-title{font-size:.78rem;color:#64748b;letter-spacing:1px;margin-bottom:14px;font-weight:600}
+.bits-row{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.bit{width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:700;
+  border:2px solid #1e3a5a;transition:all .25s;position:relative;cursor:pointer;user-select:none}
+.bit.on{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#60a5fa;
+  box-shadow:0 0 16px rgba(59,130,246,.4)}
+.bit.off{background:rgba(10,15,30,.6);border-color:#1e3a5a;color:#334155}
+.bit.bounce{animation:bounce .3s ease}
+@keyframes bounce{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+.bit-pos{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);
+  font-size:.6rem;color:#334155;font-family:'JetBrains Mono',monospace}
+.bit-val{position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+  font-size:.6rem;color:#475569;font-family:'JetBrains Mono',monospace}
+.bits-row-wrap{padding:20px 0 12px;overflow-x:auto}
+
+/* Nibbles (hex groups) */
+.nibbles{display:flex;justify-content:center;gap:16px;margin-top:14px;flex-wrap:wrap}
+.nibble{text-align:center}
+.nibble-bits{display:flex;gap:4px;margin-bottom:6px}
+.nibble-bit{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:700;
+  border:1.5px solid #1e3a5a;transition:all .25s}
+.nibble-bit.on{background:rgba(168,85,247,.2);border-color:#a78bfa;color:#c4b5fd;box-shadow:0 0 12px rgba(168,85,247,.35)}
+.nibble-bit.off{background:rgba(10,15,30,.6);border-color:#1e3a5a;color:#334155}
+.nibble-label{font-size:.7rem;color:#64748b}
+.nibble-hex{font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:700;color:#a78bfa;
+  background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.25);border-radius:6px;
+  padding:2px 10px;margin-top:4px;display:inline-block}
+.nibble-arrow{font-size:.8rem;color:#334155;margin:4px 0}
+
+/* Color preview */
+.color-section{background:rgba(15,23,42,.8);border:1px solid #1e3a5a;border-radius:16px;
+  padding:22px;margin-bottom:20px}
+.color-preview{border-radius:12px;height:80px;transition:background .3s;
+  display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;
+  font-size:.9rem;font-weight:700;letter-spacing:2px;margin-bottom:14px;border:1px solid #1e3a5a}
+.color-rgb{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.rgb-chip{padding:6px 14px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600}
+
+/* Step by step */
+.steps-section{background:rgba(15,23,42,.8);border:1px solid #1e3a5a;border-radius:16px;padding:22px}
+.steps-title{font-size:.78rem;color:#64748b;letter-spacing:1px;margin-bottom:16px;font-weight:600}
+.step-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;
+  animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+.step-num{width:24px;height:24px;border-radius:50%;background:rgba(59,130,246,.15);border:1px solid #3b82f633;
+  display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#60a5fa;font-weight:700;flex-shrink:0;margin-top:1px}
+.step-content{flex:1}
+.step-title{font-size:.82rem;font-weight:600;color:#94a3b8;margin-bottom:4px}
+.step-math{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:#e2e8f0;
+  background:rgba(59,130,246,.06);border-radius:8px;padding:8px 12px;line-height:1.8}
+.hl-dec{color:#fbbf24;font-weight:700}
+.hl-bin{color:#60a5fa;font-weight:700}
+.hl-hex{color:#a78bfa;font-weight:700}
+.hl-op{color:#34d399;font-weight:600}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="hdr">
+    <div class="hdr-badge">◉ 02-KO'RGAZMA · 8-11 SINF</div>
+    <h1>Binary & Hex Konvertor</h1>
+    <p>O'nlik sandan ikkilik va o'n oltilik songa — vizual</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="setMode('dec')" id="tab-dec">🔢 O'nlik → Binary/Hex</button>
+    <button class="tab" onclick="setMode('bin')" id="tab-bin">⚡ Binary kiritish</button>
+    <button class="tab" onclick="setMode('hex')" id="tab-hex">🟣 Hex kiritish</button>
+    <button class="tab" onclick="setMode('color')" id="tab-color">🎨 Hex Rang</button>
+  </div>
+
+  <!-- Input card -->
+  <div class="input-card">
+    <div class="input-label" id="inp-label">O'NLIK SON KIRITING (0–255)</div>
+    <div class="input-row">
+      <input class="num-input" id="main-input" type="text" value="42" placeholder="0" autocomplete="off" spellcheck="false"/>
+    </div>
+    <div class="range-wrap" id="range-wrap">
+      <input type="range" id="slider" min="0" max="255" value="42"/>
+      <div class="range-labels"><span>0</span><span>64</span><span>128</span><span>192</span><span>255</span></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results">
+    <div class="res-card dec" id="card-dec" title="Nusxalash uchun bosing" onclick="copyVal('dec')">
+      <div class="res-label">O'NLIK (DEC)</div>
+      <div class="res-value" id="val-dec">42</div>
+      <div class="res-desc">Base 10 · Raqamlar: 0–9</div>
+      <div class="copy-hint">👆 bosib nusxalang</div>
+    </div>
+    <div class="res-card bin" id="card-bin" onclick="copyVal('bin')">
+      <div class="res-label">IKKILIK (BIN)</div>
+      <div class="res-value" id="val-bin">00101010</div>
+      <div class="res-desc">Base 2 · Raqamlar: 0, 1</div>
+      <div class="copy-hint">👆 bosib nusxalang</div>
+    </div>
+    <div class="res-card hex" id="card-hex" onclick="copyVal('hex')">
+      <div class="res-label">O'N OLTILIK (HEX)</div>
+      <div class="res-value" id="val-hex">2A</div>
+      <div class="res-desc">Base 16 · 0–9, A–F</div>
+      <div class="copy-hint">👆 bosib nusxalang</div>
+    </div>
+  </div>
+
+  <!-- Bits visualizer -->
+  <div class="bits-section" id="bits-section">
+    <div class="bits-title">⚡ 8-BIT VIZUALIZATSIYA — bitlarni bosib o'zgartiring</div>
+    <div class="bits-row-wrap">
+      <div class="bits-row" id="bits-row"></div>
+    </div>
+    <div style="margin-top:24px">
+      <div class="bits-title">🟣 HEX NIBBLE (4 bit = 1 hex raqam)</div>
+      <div class="nibbles" id="nibbles"></div>
+    </div>
+  </div>
+
+  <!-- Color section (hidden by default) -->
+  <div class="color-section" id="color-section" style="display:none">
+    <div class="bits-title">🎨 HEX RANG KO'RGAZMASI</div>
+    <div class="color-preview" id="color-box">#2A2A2A</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:80px">
+        <div class="input-label">R (Qizil)</div>
+        <input type="range" id="r-slider" min="0" max="255" value="42" style="accent-color:#ef4444"/>
+      </div>
+      <div style="flex:1;min-width:80px">
+        <div class="input-label">G (Yashil)</div>
+        <input type="range" id="g-slider" min="0" max="255" value="42" style="accent-color:#22c55e"/>
+      </div>
+      <div style="flex:1;min-width:80px">
+        <div class="input-label">B (Ko'k)</div>
+        <input type="range" id="b-slider" min="0" max="255" value="42" style="accent-color:#3b82f6"/>
+      </div>
+    </div>
+    <div class="color-rgb" id="color-rgb"></div>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-section" id="steps-section">
+    <div class="steps-title">📐 QANDAY HISOBLANDI — BOSQICHMA-BOSQICH</div>
+    <div id="steps-body"></div>
+  </div>
+</div>
+
+<script>
+let mode='dec', curVal=42;
+
+// ── Bit toggle ─────────────────────────────────────────────────────────────
+function buildBits(val){
+  const row=document.getElementById('bits-row');
+  row.innerHTML='';
+  const bits=val.toString(2).padStart(8,'0').split('');
+  bits.forEach((b,i)=>{
+    const d=document.createElement('div');
+    d.className='bit '+(b==='1'?'on':'off');
+    d.innerHTML=b+`<span class="bit-pos">${2**(7-i)}</span><span class="bit-val">bit ${7-i}</span>`;
+    d.onclick=()=>toggleBit(i,val);
+    row.appendChild(d);
+  });
+
+  // Nibbles
+  const nb=document.getElementById('nibbles');
+  nb.innerHTML='';
+  ['HIGH (MSB)','LOW (LSB)'].forEach((lbl,ni)=>{
+    const wrap=document.createElement('div');wrap.className='nibble';
+    const brow=document.createElement('div');brow.className='nibble-bits';
+    const nibbleBits=bits.slice(ni*4,(ni+1)*4);
+    nibbleBits.forEach(b=>{
+      const d=document.createElement('div');
+      d.className='nibble-bit '+(b==='1'?'on':'off');
+      d.textContent=b;brow.appendChild(d);
+    });
+    const hexVal=parseInt(nibbleBits.join(''),2).toString(16).toUpperCase();
+    const dec=parseInt(nibbleBits.join(''),2);
+    wrap.innerHTML=`<div class="input-label" style="font-size:.68rem;margin-bottom:6px">${lbl}</div>`;
+    wrap.appendChild(brow);
+    wrap.innerHTML+=`<div class="nibble-arrow">↓</div>
+      <div style="font-size:.7rem;color:#475569;font-family:'JetBrains Mono',monospace">${nibbleBits.join('')} = ${dec}</div>
+      <div class="nibble-hex">${hexVal}</div>`;
+    nb.appendChild(wrap);
+  });
+}
+
+function toggleBit(i,val){
+  const newVal=val^(1<<(7-i));
+  if(newVal<0||newVal>255)return;
+  const d=document.querySelectorAll('.bit')[i];
+  d.classList.add('bounce');setTimeout(()=>d.classList.remove('bounce'),300);
+  updateAll(newVal);
+  document.getElementById('slider').value=newVal;
+  document.getElementById('main-input').value=newVal;
+}
+
+// ── Convert & update ───────────────────────────────────────────────────────
+function updateAll(n){
+  if(isNaN(n)||n<0||n>65535)return;
+  curVal=n;
+  document.getElementById('val-dec').textContent=n;
+  document.getElementById('val-bin').textContent=n.toString(2).padStart(n<=255?8:16,'0');
+  document.getElementById('val-hex').textContent=n.toString(16).toUpperCase().padStart(2,'0');
+  if(n<=255)buildBits(n);
+  buildSteps(n);
+  ['dec','bin','hex'].forEach(t=>{
+    const c=document.getElementById('card-'+t);
+    c.classList.add('glow');setTimeout(()=>c.classList.remove('glow'),400);
+  });
+}
+
+// ── Steps ─────────────────────────────────────────────────────────────────
+function buildSteps(n){
+  const body=document.getElementById('steps-body');
+  body.innerHTML='';
+  const hex=n.toString(16).toUpperCase().padStart(2,'0');
+  const bin=n.toString(2).padStart(8,'0');
+
+  // Dec → Bin
+  let divSteps='';
+  let tmp=n,i=0;
+  const divRows=[];
+  if(n===0){divRows.push('0 ÷ 2 = 0 qoldiq <span class="hl-bin">0</span>');}
+  else{
+    let t2=n;
+    while(t2>0){divRows.push(`${t2} ÷ 2 = ${Math.floor(t2/2)} qoldiq <span class="hl-bin">${t2%2}</span>`);t2=Math.floor(t2/2);}
+  }
+  divSteps=divRows.join('<br>');
+
+  addStep(body,1,'O\'nlikdan Ikkilikka (÷2 usuli)',
+    `<span class="hl-dec">${n}</span> sonini 2 ga bo'lib, qoldiqlarni olamiz:<br>${divSteps}<br>Qoldiqlarni <span class="hl-op">teskari</span> yozamiz → <span class="hl-bin">${bin}</span>`);
+
+  // Bin verification
+  let verif=bin.split('').map((b,idx)=>`<span class="hl-bin">${b}</span>×2<sup>${7-idx}</sup>`).join(' + ');
+  let calc=bin.split('').map((b,idx)=>parseInt(b)*(2**(7-idx))).filter(v=>v>0).join(' + ');
+  addStep(body,2,'Tekshirish: Ikkilikdan O\'nlikka',
+    `${verif}<br>= ${calc||'0'} = <span class="hl-dec">${n}</span> ✓`);
+
+  // Dec → Hex
+  const h=n.toString(16).toUpperCase();
+  const nibH=Math.floor(n/16), nibL=n%16;
+  addStep(body,3,'O\'nlikdan O\'n Oltilikka',
+    `<span class="hl-dec">${n}</span> ÷ 16 = ${nibH} qoldiq <span class="hl-hex">${nibL}(${nibL<10?nibL:'ABCDEF'[nibL-10]})</span><br>`+
+    `Yuqori nibble: <span class="hl-hex">${nibH.toString(16).toUpperCase()}</span> · Quyi nibble: <span class="hl-hex">${nibL.toString(16).toUpperCase()}</span><br>`+
+    `Natija: <span class="hl-hex">0x${hex}</span>`);
+
+  // Real world
+  addStep(body,4,'Hayotda qo\'llanishi',
+    `RAM manzili: <span class="hl-hex">0x${hex}</span><br>`+
+    `Rang (CSS): <span style="color:#${hex.padStart(6,hex)}; font-weight:700">#${hex.padEnd(6,hex)}</span><br>`+
+    `ASCII (agar &lt;128): ${n<128?`'<span class="hl-dec">${String.fromCharCode(n)||'?'}</span>' harfi`:'ASCII diapazoni tashqarisida'}`);
+}
+
+function addStep(parent,num,title,math){
+  const d=document.createElement('div');d.className='step-row';
+  d.innerHTML=`<div class="step-num">${num}</div>
+    <div class="step-content">
+      <div class="step-title">${title}</div>
+      <div class="step-math">${math}</div>
+    </div>`;
+  parent.appendChild(d);
+}
+
+// ── Color mode ─────────────────────────────────────────────────────────────
+function updateColor(){
+  const r=+document.getElementById('r-slider').value;
+  const g=+document.getElementById('g-slider').value;
+  const b=+document.getElementById('b-slider').value;
+  const hex=`#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`.toUpperCase();
+  const box=document.getElementById('color-box');
+  box.style.background=hex;
+  const lum=0.299*r+0.587*g+0.114*b;
+  box.style.color=lum>128?'#000':'#fff';
+  box.textContent=hex;
+  document.getElementById('color-rgb').innerHTML=
+    `<div class="rgb-chip" style="background:rgba(239,68,68,.15);color:#f87171;border:1px solid #ef444433">R = <b>${r}</b> = <b>${r.toString(16).toUpperCase().padStart(2,'0')}</b></div>`+
+    `<div class="rgb-chip" style="background:rgba(34,197,94,.15);color:#4ade80;border:1px solid #22c55e33">G = <b>${g}</b> = <b>${g.toString(16).toUpperCase().padStart(2,'0')}</b></div>`+
+    `<div class="rgb-chip" style="background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid #3b82f633">B = <b>${b}</b> = <b>${b.toString(16).toUpperCase().padStart(2,'0')}</b></div>`;
+}
+['r-slider','g-slider','b-slider'].forEach(id=>document.getElementById(id).addEventListener('input',updateColor));
+
+// ── Mode switching ─────────────────────────────────────────────────────────
+function setMode(m){
+  mode=m;
+  ['dec','bin','hex','color'].forEach(t=>{
+    document.getElementById('tab-'+t)?.classList.toggle('active',t===m);
+  });
+  const lbl=document.getElementById('inp-label');
+  const inp=document.getElementById('main-input');
+  const rw=document.getElementById('range-wrap');
+  const cs=document.getElementById('color-section');
+  const bs=document.getElementById('bits-section');
+  const ss=document.getElementById('steps-section');
+
+  cs.style.display=m==='color'?'block':'none';
+  bs.style.display=m==='color'?'none':'block';
+  ss.style.display=m==='color'?'none':'block';
+  rw.style.display=(m==='dec'||m==='color')?'block':'none';
+
+  if(m==='dec'){lbl.textContent="O'NLIK SON KIRITING (0–255)";inp.placeholder='0';inp.value=curVal;updateColor();}
+  if(m==='bin'){lbl.textContent='IKKILIK SON KIRITING (faqat 0 va 1)';inp.placeholder='00101010';inp.value=curVal.toString(2).padStart(8,'0');}
+  if(m==='hex'){lbl.textContent="O'N OLTILIK SON KIRITING (0–FF)";inp.placeholder='2A';inp.value=curVal.toString(16).toUpperCase();}
+  if(m==='color'){lbl.textContent='HEX RANG KIRITING (#RRGGBB)';inp.placeholder='#FF6B35';inp.value='';updateColor();}
+}
+
+// ── Input handling ─────────────────────────────────────────────────────────
+document.getElementById('main-input').addEventListener('input',function(){
+  let v=this.value.trim().replace(/^#/,'');
+  let n;
+  if(mode==='dec') n=parseInt(v,10);
+  else if(mode==='bin') n=parseInt(v,2);
+  else if(mode==='hex') n=parseInt(v,16);
+  else if(mode==='color'){
+    if(v.length===6){
+      const r=parseInt(v.slice(0,2),16),g=parseInt(v.slice(2,4),16),b=parseInt(v.slice(4,6),16);
+      document.getElementById('r-slider').value=r;
+      document.getElementById('g-slider').value=g;
+      document.getElementById('b-slider').value=b;
+      updateColor();
+    }
+    return;
+  }
+  if(!isNaN(n)&&n>=0&&n<=255){
+    updateAll(n);
+    if(mode==='dec') document.getElementById('slider').value=n;
+  }
+});
+
+document.getElementById('slider').addEventListener('input',function(){
+  document.getElementById('main-input').value=this.value;
+  updateAll(+this.value);
+});
+
+function copyVal(type){
+  const el=document.getElementById('val-'+type);
+  navigator.clipboard?.writeText(el.textContent).catch(()=>{});
+  const orig=el.textContent;
+  el.textContent='✓ Nusxalandi!';
+  setTimeout(()=>el.textContent=orig,1200);
+}
+
+// Init
+updateAll(42);updateColor();
+</script>
+</body>
+</html>
