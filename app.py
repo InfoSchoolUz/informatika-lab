@@ -135,7 +135,7 @@ if st.session_state.selected:
 
     with open(sel["html_path"], encoding="utf-8") as f:
         html_content = f.read()
-    st.components.v1.html(html_content, height=680, scrolling=False)
+    st.components.v1.html(html_content, height=900, scrolling=True)
 
 # ── Dashboard ──────────────────────────────────────────────────────────────
 else:
